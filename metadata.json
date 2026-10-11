@@ -1,0 +1,6 @@
+{
+  "name": "Whop Storefront Studio - PDF to Video AI",
+  "description": "Diseñador y configurador profesional de páginas en Whop.com inspirado en pdftovideo.whop.site, con convertidor PDF a Video interactivo, generador de copys y guía de lanzamiento.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
