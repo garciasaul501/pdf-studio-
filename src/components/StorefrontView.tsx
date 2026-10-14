@@ -1,23 +1,27 @@
 import React, { useState } from 'react';
-import { StorefrontSettings, PlanConfig, FaqItem } from '../types/whop';
+import { StorefrontSettings, PlanConfig, FaqItem, UserSession } from '../types/whop';
 import { defaultTestimonials, defaultFaqs } from '../data/defaultConfig';
 import { PdfToVideoTool } from './PdfToVideoTool';
 import { 
   Check, Star, Shield, Zap, Sparkles, Video, ArrowRight, 
   HelpCircle, ChevronDown, ChevronUp, Lock, CheckCircle2,
-  Clock, Award, Users, TrendingUp, Layers, Smartphone
+  Clock, Award, Users, TrendingUp, Layers, Smartphone, Crown
 } from 'lucide-react';
 
 interface StorefrontViewProps {
   settings: StorefrontSettings;
+  session?: UserSession | null;
   onOpenCheckout: (plan: PlanConfig) => void;
   onSwitchToGuide: () => void;
+  onSwitchToAdmin?: () => void;
 }
 
 export const StorefrontView: React.FC<StorefrontViewProps> = ({
   settings,
+  session,
   onOpenCheckout,
-  onSwitchToGuide
+  onSwitchToGuide,
+  onSwitchToAdmin
 }) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -55,6 +59,27 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Admin Quick Banner */}
+      {session?.role === 'admin' && (
+        <div className="bg-gradient-to-r from-amber-500/20 via-orange-500/15 to-transparent border-b border-amber-500/30 py-2 px-4 text-xs">
+          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span className="font-bold text-white">Sesión Activa:</span>
+              <span className="text-amber-300 font-mono">{session.email} (Super Admin Ilimitado)</span>
+            </div>
+            {onSwitchToAdmin && (
+              <button
+                onClick={onSwitchToAdmin}
+                className="text-[11px] font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer"
+              >
+                Abrir Panel de Administración &gt;
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 2. Main Storefront Navbar */}
       <header className="sticky top-0 z-40 bg-[#0C0E14]/90 backdrop-blur-md border-b border-white/10">
@@ -186,7 +211,7 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({
 
           {/* The Live Working Tool Container */}
           <div className="bg-[#10121A] rounded-3xl border border-white/10 shadow-2xl p-2 md:p-6">
-            <PdfToVideoTool />
+            <PdfToVideoTool session={session} />
           </div>
         </div>
       </section>

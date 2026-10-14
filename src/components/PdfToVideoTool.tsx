@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { samplePdfOptions } from '../data/defaultConfig';
-import { VideoScene } from '../types/whop';
+import { VideoScene, UserSession } from '../types/whop';
 import { 
   FileText, Play, Pause, RotateCcw, Volume2, VolumeX, Download, 
   Sparkles, CheckCircle2, Sliders, Smartphone, Monitor, Layers, 
-  Share2, ArrowRight, Wand2, RefreshCw, FileUp, Copy, Check
+  Share2, ArrowRight, Wand2, RefreshCw, FileUp, Copy, Check, Crown
 } from 'lucide-react';
 
-export const PdfToVideoTool: React.FC = () => {
+interface PdfToVideoToolProps {
+  session?: UserSession | null;
+}
+
+export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
   const [selectedSample, setSelectedSample] = useState(samplePdfOptions[0]);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('9:16');
   const [voice, setVoice] = useState<'carlos' | 'sofia' | 'mateo' | 'elena'>('carlos');
@@ -159,6 +163,28 @@ export const PdfToVideoTool: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto p-4 md:p-8">
+      {/* Admin Unlimited Notice */}
+      {session?.isUnlimited && (
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-transparent border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+              <Crown className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-white block">
+                Sesión de Super Administrador Ilimitado Activa
+              </span>
+              <span className="text-slate-400 font-mono text-[11px]">
+                {session.email} · Conversiones, renders 4K y voces neuronales 100% libres de costo
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold font-mono text-[10px] uppercase tracking-wider border border-emerald-500/30">
+            Renders ∞ Ilimitados
+          </span>
+        </div>
+      )}
+
       {/* Top Banner / Tool Header */}
       <div className="mb-8">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">

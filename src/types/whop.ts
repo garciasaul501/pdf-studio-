@@ -51,3 +51,25 @@ export interface StorefrontSettings {
   guaranteeDays: number;
   plans: PlanConfig[];
 }
+
+export interface UserSession {
+  email: string;
+  name: string;
+  role: 'admin' | 'pro' | 'visitor';
+  isUnlimited: boolean;
+  avatar?: string;
+  licenseKey?: string;
+  createdAt: string;
+}
+
+export interface WhopMember {
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  status: 'active' | 'trialing' | 'cancelled';
+  creditsUsed: number;
+  totalConversions: number;
+  joinedDate: string;
+  licenseKey: string;
+}
