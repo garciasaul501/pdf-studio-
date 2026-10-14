@@ -60,26 +60,7 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({
         </div>
       </div>
 
-      {/* Admin Quick Banner */}
-      {session?.role === 'admin' && (
-        <div className="bg-gradient-to-r from-amber-500/20 via-orange-500/15 to-transparent border-b border-amber-500/30 py-2 px-4 text-xs">
-          <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-amber-400" />
-              <span className="font-bold text-white">Sesión Activa:</span>
-              <span className="text-amber-300 font-mono">{session.email} (Super Admin Ilimitado)</span>
-            </div>
-            {onSwitchToAdmin && (
-              <button
-                onClick={onSwitchToAdmin}
-                className="text-[11px] font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer"
-              >
-                Abrir Panel de Administración &gt;
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+
 
       {/* 2. Main Storefront Navbar */}
       <header className="sticky top-0 z-40 bg-[#0C0E14]/90 backdrop-blur-md border-b border-white/10">

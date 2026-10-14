@@ -149,7 +149,9 @@ export const samplePdfOptions = [
         duration: 7,
         bgGradient: 'from-amber-950/80 via-slate-900 to-black',
         accentColor: '#F59E0B',
-        iconName: 'DollarSign'
+        iconName: 'DollarSign',
+        imageUrl: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Futuristic golden currency and growth visualization, glowing dark neon ambience'
       },
       {
         id: 2,
@@ -159,7 +161,9 @@ export const samplePdfOptions = [
         duration: 8,
         bgGradient: 'from-emerald-950/80 via-slate-900 to-black',
         accentColor: '#10B981',
-        iconName: 'PieChart'
+        iconName: 'PieChart',
+        imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Clean geometric breakdown of assets, emerald glowing segments, minimal 3D design'
       },
       {
         id: 3,
@@ -169,7 +173,9 @@ export const samplePdfOptions = [
         duration: 7,
         bgGradient: 'from-blue-950/80 via-slate-900 to-black',
         accentColor: '#3B82F6',
-        iconName: 'TrendingUp'
+        iconName: 'TrendingUp',
+        imageUrl: 'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Exponential growth curve, holographic numbers and celestial blue illumination'
       },
       {
         id: 4,
@@ -179,7 +185,9 @@ export const samplePdfOptions = [
         duration: 6,
         bgGradient: 'from-orange-950/80 via-slate-900 to-black',
         accentColor: '#FF6243',
-        iconName: 'CheckCircle2'
+        iconName: 'CheckCircle2',
+        imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Action checklist and futuristic dashboard, warm amber lighting'
       }
     ]
   },
@@ -198,7 +206,9 @@ export const samplePdfOptions = [
         duration: 7,
         bgGradient: 'from-rose-950/80 via-slate-900 to-black',
         accentColor: '#EF4444',
-        iconName: 'AlertCircle'
+        iconName: 'AlertCircle',
+        imageUrl: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Overwhelmed modern office scene with floating red warning particles'
       },
       {
         id: 2,
@@ -208,7 +218,9 @@ export const samplePdfOptions = [
         duration: 8,
         bgGradient: 'from-cyan-950/80 via-slate-900 to-black',
         accentColor: '#06B6D4',
-        iconName: 'Cpu'
+        iconName: 'Cpu',
+        imageUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Seamless digital automation hub, cyan neon data bridges'
       },
       {
         id: 3,
@@ -218,7 +230,9 @@ export const samplePdfOptions = [
         duration: 7,
         bgGradient: 'from-purple-950/80 via-slate-900 to-black',
         accentColor: '#A855F7',
-        iconName: 'Rocket'
+        iconName: 'Rocket',
+        imageUrl: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Rocket propulsion into vibrant violet atmosphere, upward trajectory'
       }
     ]
   },
@@ -237,7 +251,9 @@ export const samplePdfOptions = [
         duration: 8,
         bgGradient: 'from-indigo-950/80 via-slate-900 to-black',
         accentColor: '#6366F1',
-        iconName: 'Sparkles'
+        iconName: 'Sparkles',
+        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Dimensional neural network brain, intricate indigo geometry'
       },
       {
         id: 2,
@@ -247,7 +263,9 @@ export const samplePdfOptions = [
         duration: 8,
         bgGradient: 'from-emerald-950/80 via-slate-900 to-black',
         accentColor: '#10B981',
-        iconName: 'Zap'
+        iconName: 'Zap',
+        imageUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&auto=format&fit=crop&q=80',
+        imagePrompt: 'Luminous holographic typography emerging from dark matrix'
       }
     ]
   }

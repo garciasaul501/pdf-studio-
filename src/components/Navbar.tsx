@@ -89,8 +89,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Copys</span>
           </button>
 
-          {/* Admin Panel Tab */}
-          {session?.role === 'admin' ? (
+          {/* Admin Panel Tab (only if admin session is active) */}
+          {session?.role === 'admin' && (
             <button
               onClick={() => onSelectTab('admin')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
@@ -100,40 +100,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Crown className="w-3.5 h-3.5" />
-              <span>Panel Admin</span>
-            </button>
-          ) : (
-            <button
-              onClick={onOpenLogin}
-              className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-amber-400 whitespace-nowrap"
-            >
-              <Lock className="w-3.5 h-3.5" />
               <span>Admin</span>
             </button>
           )}
         </nav>
 
-        {/* User Session Right Status */}
+        {/* User Session Right Status - Discreet without revealing personal email */}
         <div className="flex items-center gap-2">
-          {session ? (
+          {session?.role === 'admin' ? (
             <div className="flex items-center gap-2">
-              <div 
+              <button
                 onClick={() => onSelectTab('admin')}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/15 border border-orange-500/30 text-xs cursor-pointer hover:bg-orange-500/25 transition-colors"
-                title="Panel de Super Administrador"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/15 border border-orange-500/30 text-xs font-bold text-amber-400 hover:bg-orange-500/25 transition-colors cursor-pointer"
+                title="Panel de Control"
               >
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-mono text-white text-[11px] font-bold max-w-[130px] sm:max-w-[180px] truncate">
-                  {session.email}
-                </span>
-                <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/20 px-1 py-0.2 rounded hidden sm:inline">
-                  ILIMITADO
-                </span>
-              </div>
+                <Crown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Modo Ilimitado</span>
+              </button>
               <button
                 onClick={onLogout}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-                title="Cerrar sesión de administrador"
+                title="Cerrar sesión"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -141,11 +128,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           ) : (
             <button
               onClick={onOpenLogin}
-              className="py-1.5 px-3 bg-[#FF6243] hover:bg-[#ff5130] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer"
+              className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer rounded-lg"
+              title="Acceso de Administración"
             >
-              <Crown className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Login Admin</span>
-              <span className="sm:hidden">Login</span>
+              <Lock className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

@@ -36,6 +36,9 @@ export interface VideoScene {
   bgGradient: string;
   accentColor: string;
   iconName: string;
+  imageUrl?: string;
+  imagePrompt?: string;
+  visualTheme?: string;
 }
 
 export interface StorefrontSettings {

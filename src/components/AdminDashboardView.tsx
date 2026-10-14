@@ -31,8 +31,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [members, setMembers] = useState<WhopMember[]>([
     {
       id: 'usr_1',
-      name: 'Saul García (Tú)',
-      email: 'garciassaul7@gmail.com',
+      name: 'Propietario Principal (Tú)',
+      email: 'g•••••••7@gmail.com',
       plan: 'Super Admin Ilimitado',
       status: 'active',
       creditsUsed: 120,
@@ -142,7 +142,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               Bienvenido, {session.name}
             </h1>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              {session.email} · Licencia: {session.licenseKey}
+              Cuenta Protegida (Modo Privado) · Licencia: {session.licenseKey}
             </p>
           </div>
         </div>

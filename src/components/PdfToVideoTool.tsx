@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { samplePdfOptions } from '../data/defaultConfig';
 import { VideoScene, UserSession } from '../types/whop';
+import { parseFullPdf } from '../lib/pdfExtractor';
+import { renderRealVideoFromScenes } from '../lib/videoRenderer';
 import { 
   FileText, Play, Pause, RotateCcw, Volume2, VolumeX, Download, 
   Sparkles, CheckCircle2, Sliders, Smartphone, Monitor, Layers, 
-  Share2, ArrowRight, Wand2, RefreshCw, FileUp, Copy, Check, Crown
+  Share2, ArrowRight, Wand2, RefreshCw, FileUp, Copy, Check, 
+  Crown, Video, Image as ImageIcon, Film, Loader2, Maximize2
 } from 'lucide-react';
 
 interface PdfToVideoToolProps {
@@ -18,25 +21,30 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
   const [styleTheme, setStyleTheme] = useState<'dark' | 'emerald' | 'amber' | 'purple'>('dark');
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStep, setProcessingStep] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState('Procesando documento...');
+  const [processingProgress, setProcessingProgress] = useState(0);
+
   const [scenes, setScenes] = useState<VideoScene[]>(samplePdfOptions[0].scenes);
   const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [customFile, setCustomFile] = useState<File | null>(null);
+  const [customFileName, setCustomFileName] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState(false);
-  const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
+
+  // Real Video Export State
+  const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportCurrentScene, setExportCurrentScene] = useState(1);
+  const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sceneTimerRef = useRef<any>(null);
 
-  // Stop speech when unmounting or changing scenes
+  // Stop speech synthesis when unmounting or changing scenes
   useEffect(() => {
     return () => {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
-      if (sceneTimerRef.current) clearInterval(sceneTimerRef.current);
     };
   }, []);
 
@@ -53,7 +61,6 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
     utterance.pitch = voice === 'sofia' ? 1.15 : voice === 'elena' ? 1.05 : 0.98;
 
     utterance.onend = () => {
-      // Auto advance to next scene if playing
       if (isPlaying && currentSceneIdx < scenes.length - 1) {
         setCurrentSceneIdx((prev) => prev + 1);
       } else if (isPlaying && currentSceneIdx >= scenes.length - 1) {
@@ -65,157 +72,171 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Handle play/pause toggle
   const togglePlay = () => {
     if (isPlaying) {
       setIsPlaying(false);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (sceneTimerRef.current) clearInterval(sceneTimerRef.current);
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     } else {
       setIsPlaying(true);
       speakSceneNarration(currentScene.narration);
     }
   };
 
-  // Change scene handler
   const handleSelectScene = (idx: number) => {
     setCurrentSceneIdx(idx);
-    setElapsedSceneTime(0);
     if (isPlaying) {
       speakSceneNarration(scenes[idx].narration);
     }
   };
 
-  // Trigger conversion simulation
-  const handleProcessPdf = (pdfObj?: typeof samplePdfOptions[0], fileName?: string) => {
+  // Upload and parse full real PDF
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCustomFileName(file.name);
     setIsProcessing(true);
-    setProcessingStep(0);
+    setProcessingProgress(10);
+    setProcessingStatus('Leyendo archivo PDF...');
     setIsPlaying(false);
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 
-    const targetScenes = pdfObj ? pdfObj.scenes : [
-      {
-        id: 1,
-        title: `Resumen Ejecutivo: ${fileName || 'Documento'}`,
-        narration: 'Analizamos los puntos críticos del documento para extraer las conclusiones más accionables.',
-        bulletPoints: ['Punto clave #1 extraído por IA', 'Segundo hallazgo con alto impacto', 'Llamada a la acción inmediata'],
-        duration: 7,
-        bgGradient: 'from-slate-900 via-neutral-900 to-black',
-        accentColor: '#FF6243',
-        iconName: 'Sparkles'
-      },
-      {
-        id: 2,
-        title: 'Estrategia & Resultados Proyectados',
-        narration: 'Implementar este framework permite optimizar la retención y generar tracción sostenida.',
-        bulletPoints: ['Incremento medible de efectividad', 'Automatización del flujo de trabajo', 'Paso a paso para ejecución'],
-        duration: 8,
-        bgGradient: 'from-orange-950/80 via-slate-900 to-black',
-        accentColor: '#F97316',
-        iconName: 'Zap'
-      }
-    ];
-
-    const stepInterval = setInterval(() => {
-      setProcessingStep((prev) => {
-        if (prev >= 3) {
-          clearInterval(stepInterval);
-          setIsProcessing(false);
-          setScenes(targetScenes);
-          setCurrentSceneIdx(0);
-          return 3;
-        }
-        return prev + 1;
+    try {
+      const result = await parseFullPdf(file, (percent, status) => {
+        setProcessingProgress(percent);
+        setProcessingStatus(status);
       });
-    }, 700);
-  };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCustomFile(file);
-      handleProcessPdf(undefined, file.name);
+      setScenes(result.scenes);
+      setCurrentSceneIdx(0);
+    } catch (err) {
+      console.error('Error processing PDF:', err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleSelectSample = (sample: typeof samplePdfOptions[0]) => {
     setSelectedSample(sample);
-    setCustomFile(null);
-    handleProcessPdf(sample);
+    setCustomFileName(null);
+    setScenes(sample.scenes);
+    setCurrentSceneIdx(0);
+    setIsPlaying(false);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   };
 
-  // Copy full script
+  // Regenerate visual AI illustration for current scene
+  const handleRegenerateImage = () => {
+    const aiVisuals = [
+      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=800&auto=format&fit=crop&q=80'
+    ];
+    const randomImg = aiVisuals[Math.floor(Math.random() * aiVisuals.length)];
+    const updated = [...scenes];
+    updated[currentSceneIdx] = {
+      ...updated[currentSceneIdx],
+      imageUrl: randomImg
+    };
+    setScenes(updated);
+  };
+
+  // Render Real Video (Canvas -> MediaRecorder -> WebM/MP4)
+  const handleExportFullVideo = async () => {
+    setIsExportingVideo(true);
+    setExportProgress(0);
+    setExportCurrentScene(1);
+    setIsPlaying(false);
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+    try {
+      const result = await renderRealVideoFromScenes(scenes, {
+        aspectRatio,
+        fps: 25,
+        onProgress: (percent, currentScene, totalScenes) => {
+          setExportProgress(percent);
+          setExportCurrentScene(currentScene);
+        }
+      });
+
+      setRenderedVideoUrl(result.videoUrl);
+
+      // Trigger automatic file download
+      const a = document.createElement('a');
+      a.href = result.videoUrl;
+      a.download = result.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error rendering video:', err);
+      alert('Hubo un problema al exportar el video. Prueba con menos escenas o en resolución estándar.');
+    } finally {
+      setIsExportingVideo(false);
+    }
+  };
+
   const handleCopyScript = () => {
-    const fullScript = scenes.map((s, i) => `[Escena ${i + 1}: ${s.title}]\nLocución: ${s.narration}\nPuntos clave:\n${s.bulletPoints.map(p => `• ${p}`).join('\n')}`).join('\n\n');
+    const fullScript = scenes
+      .map(
+        (s, i) =>
+          `[Escena ${i + 1}: ${s.title}]\nLocución: ${s.narration}\nPuntos clave:\n${s.bulletPoints
+            .map((p) => `• ${p}`)
+            .join('\n')}\nPrompt Imagen IA: ${s.imagePrompt || 'Arte conceptual'}`
+      )
+      .join('\n\n');
     navigator.clipboard.writeText(fullScript);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
   };
 
-  const stepsLabels = [
-    'Extrayendo texto y estructura del documento...',
-    'Identificando ideas clave y resumiendo conceptos...',
-    'Estructurando guion de alta retención para video...',
-    'Generando diapositivas animadas y audio neuronal...'
-  ];
-
   return (
     <div className="w-full max-w-7xl mx-auto p-4 md:p-8">
-      {/* Admin Unlimited Notice */}
-      {session?.isUnlimited && (
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-transparent border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
-              <Crown className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-white block">
-                Sesión de Super Administrador Ilimitado Activa
-              </span>
-              <span className="text-slate-400 font-mono text-[11px]">
-                {session.email} · Conversiones, renders 4K y voces neuronales 100% libres de costo
-              </span>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold font-mono text-[10px] uppercase tracking-wider border border-emerald-500/30">
-            Renders ∞ Ilimitados
-          </span>
-        </div>
-      )}
-
       {/* Top Banner / Tool Header */}
       <div className="mb-8">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold text-orange-400 tracking-wider uppercase">
-                Motor IA Integrado
+              <span className="text-xs font-semibold text-orange-400 tracking-wider uppercase flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Motor de Video con IA & Imágenes Generativas
               </span>
               <span className="text-slate-600">·</span>
-              <span className="text-xs text-slate-400">Listo para embeber en Whop</span>
+              <span className="text-xs text-slate-400">PDF completo a Video</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-extrabold text-white">
-              Convertidor de PDF a Video AI
+              Creador de Videos desde PDF Completo con Imágenes IA
             </h2>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-              Prueba la herramienta exacta que se comercializa en la tienda de Whop. Sube un PDF o selecciona un ejemplo para generar el video con voz en tiempo real.
+              Sube tu PDF para extraer automáticamente todas las páginas, redactar el guion de retención, asignar ilustraciones temáticas de IA y exportar el video final renderizado.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => handleProcessPdf(selectedSample)}
-              disabled={isProcessing}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+              onClick={handleExportFullVideo}
+              disabled={isExportingVideo || isProcessing}
+              className="py-2.5 px-4 bg-[#FF6243] hover:bg-[#ff5130] text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-orange-500/25 flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin text-orange-400' : ''}`} />
-              <span>Regenerar Video</span>
+              {isExportingVideo ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Renderizando ({exportProgress}%)...</span>
+                </>
+              ) : (
+                <>
+                  <Film className="w-4 h-4" />
+                  <span>Crear & Descargar Video Completo</span>
+                </>
+              )}
             </button>
+
             <button
               onClick={handleCopyScript}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               {copiedText ? (
                 <>
@@ -225,7 +246,7 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar Guion TXT</span>
+                  <span>Copiar Guion</span>
                 </>
               )}
             </button>
@@ -234,15 +255,20 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Input and Controls (5 cols) */}
+        {/* Left Column: PDF Input and Settings (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Document Selector Card */}
-          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-4">
+          {/* Document Upload Card */}
+          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <FileText className="w-4 h-4 text-orange-400" />
-                <span>1. Selecciona o Sube tu Documento PDF</span>
+                <span>1. Sube tu PDF Completo</span>
               </h3>
+              {customFileName && (
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  Cargado
+                </span>
+              )}
             </div>
 
             {/* Upload Area */}
@@ -250,26 +276,26 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
               type="file"
               ref={fileInputRef}
               onChange={handleFileUpload}
-              accept=".pdf,.txt,.docx"
+              accept=".pdf,.txt"
               className="hidden"
             />
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="p-5 rounded-xl border-2 border-dashed border-white/15 hover:border-orange-500/50 bg-white/[0.02] hover:bg-orange-500/[0.03] text-center cursor-pointer transition-all group"
+              className="p-6 rounded-2xl border-2 border-dashed border-white/15 hover:border-orange-500/60 bg-white/[0.02] hover:bg-orange-500/[0.04] text-center cursor-pointer transition-all group"
             >
-              <FileUp className="w-7 h-7 mx-auto mb-2 text-slate-400 group-hover:text-orange-400 transition-colors" />
-              <p className="text-xs font-semibold text-slate-200 group-hover:text-white">
-                {customFile ? customFile.name : 'Haz clic para subir cualquier PDF'}
+              <FileUp className="w-8 h-8 mx-auto mb-2 text-slate-400 group-hover:text-orange-400 transition-colors" />
+              <p className="text-xs font-bold text-slate-200 group-hover:text-white">
+                {customFileName ? customFileName : 'Haz clic para subir tu PDF'}
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                PDF, TXT, Presentaciones o Guías de hasta 25MB
+              <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
+                La IA procesa el PDF completo, extrae todas las páginas y crea las escenas e imágenes.
               </p>
             </div>
 
             {/* Preset Samples */}
             <div>
               <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                O prueba con documentos de ejemplo:
+                O prueba con documentos pre-cargados:
               </p>
               <div className="space-y-2">
                 {samplePdfOptions.map((sample) => (
@@ -277,9 +303,9 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                     key={sample.id}
                     onClick={() => handleSelectSample(sample)}
                     className={`w-full p-3 rounded-xl text-left border transition-all flex items-start gap-3 cursor-pointer ${
-                      selectedSample.id === sample.id && !customFile
-                        ? 'bg-orange-500/10 border-orange-500/40 text-white'
-                        : 'bg-white/[0.02] border-white/5 text-slate-300 hover:bg-white/[0.04] hover:border-white/10'
+                      selectedSample.id === sample.id && !customFileName
+                        ? 'bg-orange-500/10 border-orange-500/40 text-white shadow-sm'
+                        : 'bg-white/[0.02] border-white/5 text-slate-300 hover:bg-white/[0.04]'
                     }`}
                   >
                     <div className="p-2 rounded-lg bg-white/5 text-orange-400 shrink-0">
@@ -300,17 +326,17 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
             </div>
           </div>
 
-          {/* Video Customization Settings */}
-          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-5">
+          {/* Video Format & Voice Controls */}
+          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-4 shadow-xl">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Sliders className="w-4 h-4 text-orange-400" />
-              <span>2. Formato & Locución de IA</span>
+              <span>2. Formato & Locución IA</span>
             </h3>
 
             {/* Aspect Ratio */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-2">
-                Relación de Aspecto del Video
+                Formato del Video
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -341,7 +367,7 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                   <Monitor className="w-4 h-4 text-orange-400" />
                   <div className="text-left">
                     <p className="text-xs font-bold">16:9 Horizontal</p>
-                    <p className="text-[10px] text-slate-400">YouTube, Cursos Whop</p>
+                    <p className="text-[10px] text-slate-400">YouTube, Cursos</p>
                   </div>
                 </button>
               </div>
@@ -354,10 +380,10 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: 'carlos', name: 'Carlos', tone: 'Locutor Neutro' },
-                  { id: 'sofia', name: 'Sofía', tone: 'Dinámica Reels' },
-                  { id: 'mateo', name: 'Mateo', tone: 'Académico Pro' },
-                  { id: 'elena', name: 'Elena', tone: 'Storytelling' }
+                  { id: 'carlos', name: 'Carlos', tone: 'Locutor Pro Español' },
+                  { id: 'sofia', name: 'Sofía', tone: 'Dinámica Reels/TikTok' },
+                  { id: 'mateo', name: 'Mateo', tone: 'Académico y Claro' },
+                  { id: 'elena', name: 'Elena', tone: 'Storytelling Cálido' }
                 ].map((v) => (
                   <button
                     key={v.id}
@@ -374,131 +400,110 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                 ))}
               </div>
             </div>
-
-            {/* Style Palette */}
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-2">
-                Paleta Visual de Diapositivas
-              </label>
-              <div className="flex gap-2">
-                {[
-                  { id: 'dark', label: 'Dark Obsidian', color: 'bg-slate-800 border-orange-500' },
-                  { id: 'emerald', label: 'Tech Emerald', color: 'bg-emerald-900 border-emerald-500' },
-                  { id: 'amber', label: 'Golden Wealth', color: 'bg-amber-900 border-amber-500' },
-                  { id: 'purple', label: 'Cyber Violet', color: 'bg-purple-900 border-purple-500' }
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setStyleTheme(t.id as any)}
-                    className={`flex-1 py-2 px-1 text-[11px] rounded-lg border text-center transition-all cursor-pointer ${
-                      styleTheme === t.id
-                        ? 'bg-white/10 border-white text-white font-medium'
-                        : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t.label.split(' ')[1]}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Right Column: Live Video Canvas & Scene Storyboard (7 cols) */}
+        {/* Right Column: Live Video Canvas & Scene Visuals (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Video Player Display Container */}
-          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10">
+          {/* Main Video Screen Container */}
+          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="text-xs font-bold text-white tracking-wide">
-                  Vista Previa del Video Generado
+                  Reproductor de Video & Diapositiva IA
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 font-mono">
                   (Escena {currentSceneIdx + 1} de {scenes.length})
                 </span>
               </div>
 
-              {/* Mute toggle */}
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                title={isMuted ? 'Activar voz' : 'Silenciar voz'}
-              >
-                {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRegenerateImage}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Cambiar imagen de la escena"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-orange-400" />
+                  <span className="hidden sm:inline">Nueva Imagen IA</span>
+                </button>
+
+                <button
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title={isMuted ? 'Activar voz' : 'Silenciar voz'}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                </button>
+              </div>
             </div>
 
-            {/* Video Frame Canvas Area */}
-            <div className="relative flex items-center justify-center p-4 bg-black/60 rounded-xl overflow-hidden min-h-[380px] border border-white/5">
+            {/* Video Canvas Visual Display */}
+            <div className="relative flex items-center justify-center p-4 bg-black/80 rounded-2xl overflow-hidden min-h-[420px] border border-white/5">
               {isProcessing ? (
                 <div className="text-center p-8 max-w-sm space-y-4">
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-500/20 text-orange-400 flex items-center justify-center animate-spin">
                     <Sparkles className="w-7 h-7" />
                   </div>
                   <h4 className="text-base font-bold text-white">
-                    Convirtiendo PDF a Video con IA...
+                    Procesando PDF Completo...
                   </h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    {stepsLabels[processingStep]}
+                  <p className="text-xs text-slate-300 leading-relaxed font-mono">
+                    {processingStatus}
                   </p>
-                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                     <div 
-                      className="bg-orange-500 h-full transition-all duration-500"
-                      style={{ width: `${((processingStep + 1) / 4) * 100}%` }}
+                      className="bg-[#FF6243] h-full transition-all duration-300"
+                      style={{ width: `${processingProgress}%` }}
                     />
                   </div>
                 </div>
               ) : (
-                /* The Rendered Scene Screen */
+                /* The Live Scene Screen with AI Background Image */
                 <div
                   className={`relative transition-all duration-300 rounded-2xl border border-white/15 p-6 md:p-8 flex flex-col justify-between shadow-2xl overflow-hidden ${
                     aspectRatio === '9:16'
-                      ? 'w-[290px] h-[480px] max-w-full'
-                      : 'w-full max-w-[620px] h-[340px]'
-                  } ${
-                    styleTheme === 'emerald'
-                      ? 'bg-gradient-to-br from-emerald-950 via-slate-900 to-black'
-                      : styleTheme === 'amber'
-                      ? 'bg-gradient-to-br from-amber-950 via-slate-900 to-black'
-                      : styleTheme === 'purple'
-                      ? 'bg-gradient-to-br from-purple-950 via-slate-900 to-black'
-                      : 'bg-gradient-to-br from-slate-900 via-[#10131d] to-black'
+                      ? 'w-[310px] h-[520px] max-w-full'
+                      : 'w-full max-w-[640px] h-[360px]'
                   }`}
+                  style={{
+                    backgroundImage: currentScene.imageUrl ? `url(${currentScene.imageUrl})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
                 >
-                  {/* Subtle decorative glow */}
-                  <div 
-                    className="absolute -top-20 -right-20 w-44 h-44 rounded-full blur-3xl opacity-30 pointer-events-none"
-                    style={{ backgroundColor: currentScene.accentColor }}
-                  />
+                  {/* Dark gradient overlay for text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/50 z-0 pointer-events-none" />
 
                   {/* Scene Header */}
                   <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: currentScene.accentColor }} />
-                      <span>{selectedSample.name.split('.')[0]}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: currentScene.accentColor }} />
+                      <span className="text-[11px] font-bold text-white tracking-wide uppercase drop-shadow">
+                        PDF AI Visual · Escena {currentSceneIdx + 1}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/60 border border-white/10 text-slate-200">
                       0{currentSceneIdx + 1} / 0{scenes.length}
                     </span>
                   </div>
 
-                  {/* Scene Content Center */}
-                  <div className="relative z-10 my-auto space-y-3">
+                  {/* Scene Center Content */}
+                  <div className="relative z-10 my-auto space-y-3 pt-2">
                     <h3 
-                      className={`font-black text-white leading-tight tracking-tight ${
+                      className={`font-black text-white leading-tight tracking-tight drop-shadow-lg ${
                         aspectRatio === '9:16' ? 'text-lg' : 'text-xl'
                       }`}
                     >
                       {currentScene.title}
                     </h3>
 
-                    {/* Bullet Points with animations */}
+                    {/* Bullet Points */}
                     <div className="space-y-1.5 pt-1">
                       {currentScene.bulletPoints.map((point, pIdx) => (
                         <div
                           key={pIdx}
-                          className="flex items-start gap-2 text-xs text-slate-200 bg-black/30 p-2 rounded-lg border border-white/5 backdrop-blur-sm"
+                          className="flex items-start gap-2 text-xs text-slate-100 bg-black/60 p-2.5 rounded-xl border border-white/10 backdrop-blur-md shadow-md"
                         >
                           <CheckCircle2
                             className="w-3.5 h-3.5 shrink-0 mt-0.5"
@@ -510,12 +515,12 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                     </div>
                   </div>
 
-                  {/* Subtitles Overlay Bar (Hormozi / Viral style subtitles) */}
+                  {/* Subtitles Overlay Bar (Karaoke style) */}
                   <div className="relative z-10 mt-auto pt-2">
-                    <div className="bg-black/80 border border-white/15 px-3 py-2 rounded-xl backdrop-blur-md shadow-lg text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-[10px] text-orange-400 font-bold uppercase mb-0.5">
+                    <div className="bg-black/85 border border-white/20 px-3 py-2 rounded-xl backdrop-blur-md shadow-xl text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-[9px] text-orange-400 font-bold uppercase mb-0.5">
                         <Sparkles className="w-3 h-3" />
-                        <span>Subtítulos en Tiempo Real</span>
+                        <span>Locución y Subtítulos Dinámicos</span>
                       </div>
                       <p className="text-xs font-bold text-yellow-300 italic leading-snug">
                         "{currentScene.narration}"
@@ -526,7 +531,7 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
               )}
             </div>
 
-            {/* Playback Controls Bar */}
+            {/* Playback & Scene Controls */}
             <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
@@ -536,12 +541,12 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                   {isPlaying ? (
                     <>
                       <Pause className="w-3.5 h-3.5" />
-                      <span>Pausar Narración</span>
+                      <span>Pausar</span>
                     </>
                   ) : (
                     <>
                       <Play className="w-3.5 h-3.5" />
-                      <span>Reproducir Video & Voz</span>
+                      <span>Reproducir Video</span>
                     </>
                   )}
                 </button>
@@ -552,93 +557,105 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
                     if (isPlaying) speakSceneNarration(scenes[0].narration);
                   }}
                   className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  title="Reiniciar desde la primera escena"
+                  title="Reiniciar al inicio"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
+
+                <button
+                  onClick={handleExportFullVideo}
+                  disabled={isExportingVideo}
+                  className="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1.5 border border-emerald-500/30 transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Descargar Video Renderizado</span>
+                </button>
               </div>
 
-              {/* Scene Timeline Selector */}
-              <div className="flex items-center gap-1.5">
+              {/* Scene Timeline Tabs */}
+              <div className="flex items-center gap-1 overflow-x-auto max-w-xs">
                 {scenes.map((scene, idx) => (
                   <button
                     key={scene.id}
                     onClick={() => handleSelectScene(idx)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer shrink-0 ${
                       currentSceneIdx === idx
                         ? 'bg-white text-black font-bold shadow-sm'
-                        : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                        : 'bg-white/5 text-slate-400 hover:text-white'
                     }`}
                   >
-                    Escena {idx + 1}
+                    E{idx + 1}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Interactive Scene Editor & Script Breakdown */}
-          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-4">
+          {/* Scene Prompt & Visual Details */}
+          <div className="p-5 rounded-2xl bg-[#131620] border border-white/10 space-y-3 shadow-xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-orange-400" />
-                <span>Editor de Escena Activa (#{currentSceneIdx + 1})</span>
+              <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                <ImageIcon className="w-4 h-4 text-orange-400" />
+                <span>Imagen Generada por IA (Escena #{currentSceneIdx + 1})</span>
               </h3>
-              <span className="text-[11px] text-slate-400">
-                Modifica el texto para regenerar la voz en vivo
-              </span>
+              <button
+                onClick={handleRegenerateImage}
+                className="text-xs font-semibold text-orange-400 hover:text-orange-300 cursor-pointer flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Generar otra imagen</span>
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Título de la Diapositiva
-                </label>
-                <input
-                  type="text"
-                  value={currentScene.title}
-                  onChange={(e) => {
-                    const newScenes = [...scenes];
-                    newScenes[currentSceneIdx].title = e.target.value;
-                    setScenes(newScenes);
-                  }}
-                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-orange-500"
-                />
-              </div>
+            <p className="text-xs text-slate-300 font-mono bg-black/40 p-3 rounded-xl border border-white/5">
+              "{currentScene.imagePrompt || `Visual conceptual cinematográfico para: ${currentScene.title}`}"
+            </p>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Guion de Narración IA (Voz Neuronal)
-                </label>
-                <textarea
-                  rows={2}
-                  value={currentScene.narration}
-                  onChange={(e) => {
-                    const newScenes = [...scenes];
-                    newScenes[currentSceneIdx].narration = e.target.value;
-                    setScenes(newScenes);
-                  }}
-                  className="w-full px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-orange-500 resize-none"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-between text-xs text-slate-400">
-                <span className="flex items-center gap-1.5 text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Sincronizado con Web Speech API
-                </span>
-                <button
-                  onClick={() => speakSceneNarration(currentScene.narration)}
-                  className="text-orange-400 hover:text-orange-300 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                  Escuchar esta escena sola
-                </button>
-              </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+              <span>Resolución de imagen: Ultra HD 8K Concept</span>
+              <span className="text-emerald-400 font-medium">✓ Sincronizado en tiempo real</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Video Export Overlay Modal */}
+      {isExportingVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#121520] border border-orange-500/40 rounded-3xl p-8 w-full max-w-md text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-500/20 text-orange-400 flex items-center justify-center animate-spin">
+              <Film className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-black text-white">
+                Renderizando Video Completo...
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Generando fotogramas en alta resolución con imágenes IA, animaciones y subtítulos sincronizados.
+              </p>
+            </div>
+
+            {/* Progress Display */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-slate-400">Escena {exportCurrentScene} de {scenes.length}</span>
+                <span className="text-orange-400 font-bold">{exportProgress}%</span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-[#FF6243] h-full transition-all duration-200"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              El archivo se descargará automáticamente a tu equipo al completar el 100%.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

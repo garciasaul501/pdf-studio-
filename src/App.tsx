@@ -27,7 +27,7 @@ export default function App() {
     // Default active session for garciassaul7@gmail.com
     return {
       email: 'garciassaul7@gmail.com',
-      name: 'Saul García (Super Admin)',
+      name: 'Propietario VIP (Ilimitado)',
       role: 'admin',
       isUnlimited: true,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
