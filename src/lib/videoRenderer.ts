@@ -64,6 +64,12 @@ export async function renderRealVideoFromScenes(
   const dest = audioCtx.createMediaStreamDestination();
   const stream = canvas.captureStream(fps);
 
+  const sceneDurations = scenes.map((s) => s.duration || 6);
+  const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
+
+  // Synthesize rich ambient background audio into the video
+  startAmbientSoundtrack(audioCtx, dest, totalDuration);
+
   if (dest.stream.getAudioTracks().length > 0) {
     dest.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
   }
@@ -104,8 +110,6 @@ export async function renderRealVideoFromScenes(
 
   mediaRecorder.start();
 
-  const sceneDurations = scenes.map((s) => s.duration || 6);
-  const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
   const totalFrames = Math.round(totalDuration * fps);
 
   let currentFrame = 0;
@@ -419,3 +423,37 @@ function roundRect(
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+
+function startAmbientSoundtrack(
+  audioCtx: AudioContext,
+  dest: MediaStreamAudioDestinationNode,
+  durationSec: number
+) {
+  try {
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(550, audioCtx.currentTime);
+    filter.Q.setValueAtTime(1.5, audioCtx.currentTime);
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0.09, audioCtx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durationSec);
+
+    // Harmonic chord progression: A minor 7 / C major 7 frequencies
+    const chordFrequencies = [220.0, 261.63, 329.63, 392.0];
+    chordFrequencies.forEach((freq) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      osc.connect(filter);
+      osc.start();
+      osc.stop(audioCtx.currentTime + durationSec);
+    });
+
+    filter.connect(masterGain);
+    masterGain.connect(dest);
+  } catch (err) {
+    console.warn('Audio synthesis fallback:', err);
+  }
+}
+

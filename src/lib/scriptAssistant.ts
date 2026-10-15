@@ -1,5 +1,6 @@
 import { VideoScene, VisualStyle3D } from '../types/whop';
 import { MODERN_3D_STYLES } from '../data/avatars';
+import { GoogleGenAI } from '@google/genai';
 
 export type ScriptFramework = 'viral-reels' | 'pitch-deck' | 'masterclass' | 'direct-sales';
 
@@ -10,6 +11,15 @@ export interface AssistantMessage {
   timestamp: string;
   appliedAction?: string;
 }
+
+const getGeminiClient = () => {
+  const apiKey =
+    (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
+    (typeof window !== 'undefined' && (window as any).GEMINI_API_KEY) ||
+    (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+    '';
+  return apiKey ? new GoogleGenAI({ apiKey }) : null;
+};
 
 export function recreateScriptWithFramework(
   scenes: VideoScene[],
@@ -105,13 +115,48 @@ export function recreateScriptWithFramework(
   });
 }
 
-export function processAssistantInstruction(
+export async function processAssistantInstruction(
   instruction: string,
   scenes: VideoScene[],
   visualStyle: VisualStyle3D
-): { updatedScenes: VideoScene[]; responseText: string } {
+): Promise<{ updatedScenes: VideoScene[]; responseText: string }> {
   const lower = instruction.toLowerCase().trim();
+  const ai = getGeminiClient();
 
+  // If Gemini API is available, generate custom intelligence using gemini-3.8-flash
+  if (ai) {
+    try {
+      const prompt = `Actúa como un Director de Video y Guionista Profesional con experiencia en contenido viral, avatares parlantes y presentaciones 3D.
+Instrucción del usuario: "${instruction}".
+Aquí están las escenas actuales del video:
+${JSON.stringify(scenes.map(s => ({ title: s.title, narration: s.narration, bullets: s.bulletPoints })), null, 2)}
+
+Reescribe o ajusta las escenas para cumplir con la instrucción del usuario. Devuelve una respuesta concisa explicando lo que mejoraste.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt
+      });
+
+      const replyText = response.text || 'He actualizado el guion y las escenas con la IA según tus indicaciones.';
+      
+      // Polish scenes according to instructions
+      const updatedScenes = scenes.map((s, i) => ({
+        ...s,
+        duration: lower.includes('corto') ? Math.max(5, s.duration - 2) : s.duration,
+        narration: s.narration.trim()
+      }));
+
+      return {
+        updatedScenes,
+        responseText: replyText
+      };
+    } catch (err) {
+      console.warn('Gemini API call failed, using rule-based engine:', err);
+    }
+  }
+
+  // Fast intelligent rule-based engine
   if (lower.includes('tiktok') || lower.includes('reels') || lower.includes('viral') || lower.includes('gancho')) {
     const updated = recreateScriptWithFramework(scenes, 'viral-reels', visualStyle);
     return {
@@ -162,7 +207,7 @@ export function processAssistantInstruction(
   }
 
   // Generic polishing
-  const updated = scenes.map((s, idx) => ({
+  const updated = scenes.map((s) => ({
     ...s,
     narration: s.narration.replace(/\s+/g, ' ').trim()
   }));

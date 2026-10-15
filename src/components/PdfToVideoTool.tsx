@@ -217,7 +217,7 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
   };
 
   // Send instruction to AI Assistant
-  const handleSendAssistantInstruction = (e: React.FormEvent) => {
+  const handleSendAssistantInstruction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assistantInput.trim()) return;
 
@@ -233,10 +233,9 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
     };
     setChatMessages((prev) => [...prev, userMsg]);
 
-    setTimeout(() => {
-      const { updatedScenes, responseText } = processAssistantInstruction(userText, scenes, visualStyle3D);
+    try {
+      const { updatedScenes, responseText } = await processAssistantInstruction(userText, scenes, visualStyle3D);
       setScenes(updatedScenes);
-      setIsAssistantThinking(false);
 
       const aiMsg: AssistantMessage = {
         id: `ai_${Date.now()}`,
@@ -245,7 +244,11 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
         timestamp: 'Ahora'
       };
       setChatMessages((prev) => [...prev, aiMsg]);
-    }, 600);
+    } catch (err) {
+      console.error('Assistant error:', err);
+    } finally {
+      setIsAssistantThinking(false);
+    }
   };
 
   // Regenerate 3D image for active scene
