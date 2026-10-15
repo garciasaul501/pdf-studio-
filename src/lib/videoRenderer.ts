@@ -1,8 +1,11 @@
-import { VideoScene } from '../types/whop';
+import { VideoScene, PresenterAvatar, VisualStyle3D } from '../types/whop';
 
 export interface RenderVideoOptions {
   aspectRatio: '16:9' | '9:16';
   fps?: number;
+  presenter?: PresenterAvatar;
+  includeAvatar?: boolean;
+  visualStyle?: VisualStyle3D;
   onProgress?: (percent: number, currentScene: number, totalScenes: number) => void;
 }
 
@@ -32,7 +35,6 @@ export async function renderRealVideoFromScenes(
         img.crossOrigin = 'anonymous';
         img.onload = () => resolve(img);
         img.onerror = () => {
-          // If image fails, create fallback canvas pattern
           const dummy = document.createElement('canvas');
           dummy.width = 100;
           dummy.height = 100;
@@ -48,12 +50,20 @@ export async function renderRealVideoFromScenes(
     })
   );
 
-  // Setup Web Audio synthesized speech tone track for real audio in the video
+  // Preload presenter avatar if enabled
+  let avatarImg: HTMLImageElement | null = null;
+  let talkingAvatarImg: HTMLImageElement | null = null;
+
+  if (options.includeAvatar && options.presenter) {
+    avatarImg = await loadImage(options.presenter.avatarUrl);
+    talkingAvatarImg = await loadImage(options.presenter.talkingAvatarUrl);
+  }
+
+  // Setup Web Audio synthesized tone track for real audio output
   const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   const dest = audioCtx.createMediaStreamDestination();
   const stream = canvas.captureStream(fps);
 
-  // Add audio tracks if available
   if (dest.stream.getAudioTracks().length > 0) {
     dest.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
   }
@@ -68,7 +78,7 @@ export async function renderRealVideoFromScenes(
 
   const mediaRecorder = new MediaRecorder(stream, {
     mimeType: chosenMime,
-    videoBitsPerSecond: 3000000 // 3 Mbps high quality
+    videoBitsPerSecond: 3500000 // 3.5 Mbps high definition
   });
 
   const chunks: Blob[] = [];
@@ -85,7 +95,7 @@ export async function renderRealVideoFromScenes(
         resolve({
           videoBlob: blob,
           videoUrl,
-          fileName: `PDF-to-Video-AI-${Date.now()}.${ext}`
+          fileName: `PDF-AI-Video-3D-${Date.now()}.${ext}`
         });
       };
       mediaRecorder.onerror = (e) => reject(e);
@@ -94,7 +104,6 @@ export async function renderRealVideoFromScenes(
 
   mediaRecorder.start();
 
-  // Total frames computation
   const sceneDurations = scenes.map((s) => s.duration || 6);
   const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
   const totalFrames = Math.round(totalDuration * fps);
@@ -114,10 +123,23 @@ export async function renderRealVideoFromScenes(
 
       options.onProgress?.(overallPercent, sIdx + 1, scenes.length);
 
-      // Render Frame
-      drawSceneFrame(ctx, width, height, isVertical, scene, img, sceneProgress, sIdx + 1, scenes.length);
+      // Render 3D Scene Frame with Talking Presenter
+      draw3DSceneWithPresenter(
+        ctx,
+        width,
+        height,
+        isVertical,
+        scene,
+        img,
+        sceneProgress,
+        sIdx + 1,
+        scenes.length,
+        options.presenter,
+        avatarImg,
+        talkingAvatarImg,
+        f
+      );
 
-      // Wait for next frame timing
       await new Promise((r) => setTimeout(r, 1000 / fps));
     }
   }
@@ -129,7 +151,21 @@ export async function renderRealVideoFromScenes(
   return recordingPromise;
 }
 
-function drawSceneFrame(
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => {
+      const fallback = new Image();
+      fallback.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
+      resolve(fallback);
+    };
+    img.src = src;
+  });
+}
+
+function draw3DSceneWithPresenter(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -138,20 +174,25 @@ function drawSceneFrame(
   img: HTMLImageElement,
   progress: number,
   sceneNumber: number,
-  totalScenes: number
+  totalScenes: number,
+  presenter?: PresenterAvatar,
+  avatarImg?: HTMLImageElement | null,
+  talkingAvatarImg?: HTMLImageElement | null,
+  frameIdx: number = 0
 ) {
   ctx.save();
 
   // 1. Clear background
-  ctx.fillStyle = '#0B0D14';
+  ctx.fillStyle = '#090B10';
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Draw AI Background Image with subtle Ken Burns effect (zoom 1.0 -> 1.15)
-  const scale = 1.0 + progress * 0.12;
-  const panX = Math.sin(progress * Math.PI) * 20;
+  // 2. 3D Modern Visual Backdrop with Ken Burns Camera Zoom
+  const scale = 1.0 + progress * 0.14;
+  const panX = Math.sin(progress * Math.PI) * 24;
+  const panY = Math.cos(progress * Math.PI) * 12;
 
   ctx.save();
-  ctx.translate(width / 2 + panX, height / 2);
+  ctx.translate(width / 2 + panX, height / 2 + panY);
   ctx.scale(scale, scale);
 
   const imgRatio = img.width / img.height;
@@ -170,89 +211,153 @@ function drawSceneFrame(
   ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
   ctx.restore();
 
-  // 3. Cinematic Dark Gradient Overlay
+  // 3. 3D Volumetric Lighting & Dark Glassmorphism Gradient
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, 'rgba(11, 13, 20, 0.7)');
-  gradient.addColorStop(0.5, 'rgba(11, 13, 20, 0.82)');
-  gradient.addColorStop(1, 'rgba(11, 13, 20, 0.96)');
+  gradient.addColorStop(0, 'rgba(9, 11, 16, 0.72)');
+  gradient.addColorStop(0.45, 'rgba(9, 11, 16, 0.84)');
+  gradient.addColorStop(1, 'rgba(9, 11, 16, 0.97)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // 4. Accent Color Ambient Glow
+  // 4. Accent Glow Aura
   const radialGlow = ctx.createRadialGradient(
-    width * 0.8,
-    height * 0.3,
-    50,
-    width * 0.8,
-    height * 0.3,
-    width * 0.6
+    width * 0.75,
+    height * 0.25,
+    60,
+    width * 0.75,
+    height * 0.25,
+    width * 0.7
   );
-  radialGlow.addColorStop(0, `${scene.accentColor || '#FF6243'}40`);
+  radialGlow.addColorStop(0, `${scene.accentColor || '#FF6243'}44`);
   radialGlow.addColorStop(1, 'transparent');
   ctx.fillStyle = radialGlow;
   ctx.fillRect(0, 0, width, height);
 
-  // 5. Top Progress Bar across entire video
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+  // 5. Top Timeline Bar
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
   ctx.fillRect(0, 0, width, 6);
   ctx.fillStyle = scene.accentColor || '#FF6243';
   ctx.fillRect(0, 0, width * ((sceneNumber - 1 + progress) / totalScenes), 6);
 
-  // 6. Header: Category badge & Slide Counter
-  ctx.font = 'bold 16px -apple-system, sans-serif';
+  // 6. Header Tag: Category & 3D Badge
+  ctx.font = 'bold 15px -apple-system, sans-serif';
   ctx.fillStyle = scene.accentColor || '#FF6243';
-  ctx.fillText('✦ PDF TO VIDEO AI · ESCENA ' + sceneNumber + ' DE ' + totalScenes, 40, isVertical ? 70 : 50);
+  ctx.fillText('✦ 3D AI STUDIO · ESCENA ' + sceneNumber + ' DE ' + totalScenes, 40, isVertical ? 65 : 48);
 
-  // 7. Title with drop shadow
-  ctx.font = isVertical ? 'bold 36px -apple-system, sans-serif' : 'bold 40px -apple-system, sans-serif';
+  // 7. Slide Title
+  ctx.font = isVertical ? 'bold 36px -apple-system, sans-serif' : 'bold 42px -apple-system, sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-  ctx.shadowBlur = 12;
-
-  wrapText(ctx, scene.title, 40, isVertical ? 130 : 110, width - 80, isVertical ? 46 : 50);
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 14;
+  wrapText(ctx, scene.title, 40, isVertical ? 120 : 105, isVertical ? width - 80 : width - 260, isVertical ? 46 : 50);
   ctx.shadowBlur = 0;
 
-  // 8. Bullet points
-  const startY = isVertical ? 320 : 250;
-  const lineSpacing = isVertical ? 90 : 80;
+  // 8. 3D Glassmorphic Bullet Cards
+  const startY = isVertical ? 300 : 230;
+  const lineSpacing = isVertical ? 86 : 76;
+  const cardWidth = isVertical ? width - 80 : width - 360;
 
   scene.bulletPoints.forEach((point, pIdx) => {
-    // Staggered reveal based on progress
-    const pointThreshold = (pIdx + 1) * 0.22;
+    const pointThreshold = (pIdx + 1) * 0.2;
     if (progress >= pointThreshold * 0.5) {
       const currentY = startY + pIdx * lineSpacing;
 
-      // Card container background
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
-      roundRect(ctx, 40, currentY - 30, width - 80, isVertical ? 72 : 65, 14);
+      // Card glass background
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      roundRect(ctx, 40, currentY - 26, cardWidth, isVertical ? 70 : 62, 14);
       ctx.fill();
 
-      // Card border
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      // Glowing edge
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Checkmark icon badge
+      // Check bullet
       ctx.fillStyle = scene.accentColor || '#FF6243';
       ctx.beginPath();
-      ctx.arc(68, currentY + (isVertical ? 6 : 2), 12, 0, Math.PI * 2);
+      ctx.arc(66, currentY + (isVertical ? 8 : 4), 11, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('✓', 63, currentY + (isVertical ? 10 : 6));
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('✓', 62, currentY + (isVertical ? 12 : 8));
 
-      // Point text
-      ctx.font = isVertical ? '500 20px -apple-system, sans-serif' : '500 22px -apple-system, sans-serif';
-      ctx.fillStyle = '#E2E8F0';
-      wrapText(ctx, point, 95, currentY + (isVertical ? 12 : 8), width - 150, 26);
+      // Bullet text
+      ctx.font = isVertical ? '500 19px -apple-system, sans-serif' : '500 21px -apple-system, sans-serif';
+      ctx.fillStyle = '#F1F5F9';
+      wrapText(ctx, point, 90, currentY + (isVertical ? 14 : 10), cardWidth - 70, 24);
     }
   });
 
-  // 9. Karaoke / Subtitle Bar at Bottom
-  const subtitleBoxY = height - (isVertical ? 220 : 150);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-  roundRect(ctx, 30, subtitleBoxY, width - 60, isVertical ? 160 : 100, 20);
+  // 9. TALKING AI AVATAR PRESENTER IN CORNER
+  if (presenter && avatarImg) {
+    const avatarRadius = isVertical ? 65 : 75;
+    const avatarCenterX = isVertical ? width - 90 : width - 130;
+    const avatarCenterY = isVertical ? height - 310 : height - 210;
+
+    // Is talking mouth cycle (simulated lip sync by frame modulation)
+    const isMouthOpen = Math.sin(frameIdx * 0.6) > 0.1;
+    const activeAvatar = isMouthOpen && talkingAvatarImg ? talkingAvatarImg : avatarImg;
+
+    // Glowing audio aura ring
+    ctx.save();
+    const auraRadius = avatarRadius + (isMouthOpen ? 8 : 4);
+    const auraGlow = ctx.createRadialGradient(
+      avatarCenterX,
+      avatarCenterY,
+      avatarRadius - 5,
+      avatarCenterX,
+      avatarCenterY,
+      auraRadius + 14
+    );
+    auraGlow.addColorStop(0, `${scene.accentColor || '#FF6243'}88`);
+    auraGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = auraGlow;
+    ctx.beginPath();
+    ctx.arc(avatarCenterX, avatarCenterY, auraRadius + 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Clip circular avatar
+    ctx.beginPath();
+    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
+    ctx.clip();
+
+    ctx.drawImage(
+      activeAvatar,
+      avatarCenterX - avatarRadius,
+      avatarCenterY - avatarRadius,
+      avatarRadius * 2,
+      avatarRadius * 2
+    );
+    ctx.restore();
+
+    // Ring border
+    ctx.strokeStyle = isMouthOpen ? (scene.accentColor || '#FF6243') : 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Presenter Name Tag
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    roundRect(ctx, avatarCenterX - 75, avatarCenterY + avatarRadius + 6, 150, 26, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.stroke();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 12px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🎙️ ${presenter.name.split(' ')[0]} (IA)`, avatarCenterX, avatarCenterY + avatarRadius + 23);
+    ctx.textAlign = 'left';
+  }
+
+  // 10. Modern Karaoke Subtitles Bar at Bottom
+  const subtitleBoxY = height - (isVertical ? 190 : 130);
+  const subtitleWidth = isVertical ? width - 60 : width - 80;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+  roundRect(ctx, 30, subtitleBoxY, subtitleWidth, isVertical ? 140 : 95, 18);
   ctx.fill();
 
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
@@ -260,17 +365,14 @@ function drawSceneFrame(
   ctx.stroke();
 
   // Subtitle header
-  ctx.font = 'bold 13px -apple-system, sans-serif';
+  ctx.font = 'bold 12px -apple-system, sans-serif';
   ctx.fillStyle = scene.accentColor || '#F59E0B';
-  ctx.fillText('🎙️ LOCUCIÓN EN TIEMPO REAL', 55, subtitleBoxY + 30);
+  ctx.fillText('✨ LOCUCIÓN NEURONAL EN VIVO', 50, subtitleBoxY + 26);
 
-  // Subtitle text with word-highlight karaoke effect
-  const words = scene.narration.split(' ');
-  const currentWordIdx = Math.floor(progress * words.length);
-
-  ctx.font = isVertical ? 'bold 22px -apple-system, sans-serif' : 'bold 24px -apple-system, sans-serif';
-  ctx.fillStyle = '#FDE047'; // Bright yellow
-  wrapText(ctx, `"${scene.narration}"`, 55, subtitleBoxY + (isVertical ? 70 : 65), width - 110, isVertical ? 32 : 32);
+  // Subtitle speech text (Hormozi / Viral high-contrast yellow)
+  ctx.font = isVertical ? 'bold 21px -apple-system, sans-serif' : 'bold 23px -apple-system, sans-serif';
+  ctx.fillStyle = '#FDE047';
+  wrapText(ctx, `"${scene.narration}"`, 50, subtitleBoxY + (isVertical ? 62 : 60), subtitleWidth - 40, 30);
 
   ctx.restore();
 }

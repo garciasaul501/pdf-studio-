@@ -27,6 +27,20 @@ export interface FaqItem {
   category: 'producto' | 'whop' | 'tecnico' | 'facturacion';
 }
 
+export interface PresenterAvatar {
+  id: string;
+  name: string;
+  title: string;
+  avatarUrl: string;
+  talkingAvatarUrl: string;
+  voiceId: 'carlos' | 'sofia' | 'mateo' | 'elena';
+  gender: 'male' | 'female';
+  tone: string;
+  specialty: string;
+}
+
+export type VisualStyle3D = '3d-glassmorphism' | '3d-cyberneon' | '3d-hologram' | '3d-pixar-tech';
+
 export interface VideoScene {
   id: number;
   title: string;
@@ -39,6 +53,7 @@ export interface VideoScene {
   imageUrl?: string;
   imagePrompt?: string;
   visualTheme?: string;
+  style3D?: VisualStyle3D;
 }
 
 export interface StorefrontSettings {
