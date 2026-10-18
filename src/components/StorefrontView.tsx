@@ -442,7 +442,7 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {defaultTestimonials.map((t) => (
+            {(settings.testimonials && settings.testimonials.length > 0 ? settings.testimonials : defaultTestimonials).map((t) => (
               <div
                 key={t.id}
                 className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between space-y-4"

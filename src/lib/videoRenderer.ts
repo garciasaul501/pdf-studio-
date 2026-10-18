@@ -27,27 +27,13 @@ export async function renderRealVideoFromScenes(
     throw new Error('Canvas 2D context not available');
   }
 
-  // Preload all scene images
+  // Draw initial canvas frame so stream is immediately valid
+  ctx.fillStyle = '#090B10';
+  ctx.fillRect(0, 0, width, height);
+
+  // Preload all scene images safely
   const loadedImages: HTMLImageElement[] = await Promise.all(
-    scenes.map((scene) => {
-      return new Promise<HTMLImageElement>((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = () => {
-          const dummy = document.createElement('canvas');
-          dummy.width = 100;
-          dummy.height = 100;
-          const dctx = dummy.getContext('2d')!;
-          dctx.fillStyle = scene.accentColor || '#FF6243';
-          dctx.fillRect(0, 0, 100, 100);
-          const fallbackImg = new Image();
-          fallbackImg.src = dummy.toDataURL();
-          resolve(fallbackImg);
-        };
-        img.src = scene.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-      });
-    })
+    scenes.map((scene) => loadImageSafe(scene.imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80', scene.accentColor || '#FF6243'))
   );
 
   // Preload presenter avatar if enabled
@@ -55,8 +41,8 @@ export async function renderRealVideoFromScenes(
   let talkingAvatarImg: HTMLImageElement | null = null;
 
   if (options.includeAvatar && options.presenter) {
-    avatarImg = await loadImage(options.presenter.avatarUrl);
-    talkingAvatarImg = await loadImage(options.presenter.talkingAvatarUrl);
+    avatarImg = await loadImageSafe(options.presenter.avatarUrl, '#FF6243');
+    talkingAvatarImg = await loadImageSafe(options.presenter.talkingAvatarUrl, '#F59E0B');
   }
 
   // Setup Web Audio synthesized tone track for real audio output
@@ -64,7 +50,8 @@ export async function renderRealVideoFromScenes(
   const dest = audioCtx.createMediaStreamDestination();
   const stream = canvas.captureStream(fps);
 
-  const sceneDurations = scenes.map((s) => s.duration || 6);
+  // High-performance shorter scene duration for export so user gets immediate results
+  const sceneDurations = scenes.map((s) => Math.max(4, Math.min(8, s.duration || 5)));
   const totalDuration = sceneDurations.reduce((a, b) => a + b, 0);
 
   // Synthesize rich ambient background audio into the video
@@ -80,12 +67,24 @@ export async function renderRealVideoFromScenes(
     'video/webm',
     'video/mp4'
   ];
-  let chosenMime = mimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  let chosenMime = mimeTypes.find((m) => {
+    try {
+      return MediaRecorder.isTypeSupported(m);
+    } catch {
+      return false;
+    }
+  }) || 'video/webm';
 
-  const mediaRecorder = new MediaRecorder(stream, {
-    mimeType: chosenMime,
-    videoBitsPerSecond: 3500000 // 3.5 Mbps high definition
-  });
+  let mediaRecorder: MediaRecorder;
+  try {
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: chosenMime,
+      videoBitsPerSecond: 3000000 // 3 Mbps
+    });
+  } catch {
+    // Fallback without options
+    mediaRecorder = new MediaRecorder(stream);
+  }
 
   const chunks: Blob[] = [];
   mediaRecorder.ondataavailable = (e) => {
@@ -108,10 +107,9 @@ export async function renderRealVideoFromScenes(
     }
   );
 
-  mediaRecorder.start();
+  mediaRecorder.start(250);
 
   const totalFrames = Math.round(totalDuration * fps);
-
   let currentFrame = 0;
 
   for (let sIdx = 0; sIdx < scenes.length; sIdx++) {
@@ -144,7 +142,8 @@ export async function renderRealVideoFromScenes(
         f
       );
 
-      await new Promise((r) => setTimeout(r, 1000 / fps));
+      // Fast frame step
+      await new Promise((r) => setTimeout(r, Math.max(8, Math.floor(650 / fps))));
     }
   }
 
@@ -155,16 +154,55 @@ export async function renderRealVideoFromScenes(
   return recordingPromise;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+function createProcedural3DImage(accentColor: string): HTMLImageElement {
+  const c = document.createElement('canvas');
+  c.width = 800;
+  c.height = 600;
+  const cx = c.getContext('2d')!;
+
+  const grad = cx.createRadialGradient(400, 300, 40, 400, 300, 450);
+  grad.addColorStop(0, accentColor);
+  grad.addColorStop(0.4, '#131622');
+  grad.addColorStop(1, '#090B10');
+  cx.fillStyle = grad;
+  cx.fillRect(0, 0, 800, 600);
+
+  cx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  cx.lineWidth = 1.5;
+  for (let i = 0; i < 800; i += 50) {
+    cx.beginPath();
+    cx.moveTo(i, 0);
+    cx.lineTo(i + 150, 600);
+    cx.stroke();
+  }
+
+  const img = new Image();
+  img.src = c.toDataURL('image/png');
+  return img;
+}
+
+async function loadImageSafe(src: string, fallbackColor: string = '#FF6243'): Promise<HTMLImageElement> {
+  try {
+    const res = await fetch(src, { mode: 'cors' });
+    if (res.ok) {
+      const blob = await res.blob();
+      const localUrl = URL.createObjectURL(blob);
+      return await new Promise<HTMLImageElement>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(createProcedural3DImage(fallbackColor));
+        img.src = localUrl;
+      });
+    }
+  } catch {
+    // Fallback below
+  }
+
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => {
-      const fallback = new Image();
-      fallback.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80';
-      resolve(fallback);
-    };
+    img.onerror = () => resolve(createProcedural3DImage(fallbackColor));
     img.src = src;
   });
 }

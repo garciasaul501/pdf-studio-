@@ -12,9 +12,118 @@ import { StorefrontSettings, PlanConfig, UserSession } from './types/whop';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'storefront' | 'tool' | 'guide' | 'copys' | 'admin'>('storefront');
-  const [settings, setSettings] = useState<StorefrontSettings>(initialStorefrontSettings);
+  const [settings, setSettings] = useState<StorefrontSettings>(() => {
+    try {
+      const saved = localStorage.getItem('whop_storefront_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...initialStorefrontSettings,
+          ...parsed,
+          seo: {
+            ...initialStorefrontSettings.seo,
+            ...(parsed.seo || {})
+          }
+        };
+      }
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+    return initialStorefrontSettings;
+  });
   const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<PlanConfig | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Sync settings to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('whop_storefront_settings', JSON.stringify(settings));
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+    }
+  }, [settings]);
+
+  // Dynamic SEO & OpenGraph DOM synchronization per applet-seo guidelines
+  useEffect(() => {
+    const seo = settings.seo;
+    if (!seo) return;
+
+    // Document Title
+    if (seo.pageTitle) {
+      document.title = seo.pageTitle;
+    }
+
+    // Helper to update or create meta tag
+    const setMetaTag = (attrName: 'name' | 'property', attrValue: string, content: string) => {
+      let element = document.querySelector(`meta[${attrName}="${attrValue}"]`);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attrName, attrValue);
+        document.head.appendChild(element);
+      }
+      element.setAttribute('content', content);
+    };
+
+    // Standard meta tags
+    if (seo.metaDescription) setMetaTag('name', 'description', seo.metaDescription);
+    if (seo.keywords) setMetaTag('name', 'keywords', seo.keywords);
+    if (seo.author) setMetaTag('name', 'author', seo.author);
+    if (seo.robots) setMetaTag('name', 'robots', seo.robots);
+
+    // Open Graph
+    if (seo.ogTitle) setMetaTag('property', 'og:title', seo.ogTitle);
+    if (seo.ogDescription) setMetaTag('property', 'og:description', seo.ogDescription);
+    if (seo.ogImage) setMetaTag('property', 'og:image', seo.ogImage);
+    if (seo.ogType) setMetaTag('property', 'og:type', seo.ogType);
+    setMetaTag('property', 'og:site_name', settings.storeName);
+    if (seo.canonicalUrl) setMetaTag('property', 'og:url', seo.canonicalUrl);
+
+    // Twitter / X
+    if (seo.twitterCard) setMetaTag('name', 'twitter:card', seo.twitterCard);
+    if (seo.ogTitle) setMetaTag('name', 'twitter:title', seo.ogTitle);
+    if (seo.ogDescription) setMetaTag('name', 'twitter:description', seo.ogDescription);
+    if (seo.ogImage) setMetaTag('name', 'twitter:image', seo.ogImage);
+    if (seo.twitterCreator) setMetaTag('name', 'twitter:creator', seo.twitterCreator);
+
+    // Canonical link
+    if (seo.canonicalUrl) {
+      let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!canonicalLink) {
+        canonicalLink = document.createElement('link');
+        canonicalLink.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonicalLink);
+      }
+      canonicalLink.setAttribute('href', seo.canonicalUrl);
+    }
+
+    // Schema.org Structured Data (JSON-LD)
+    let schemaScript = document.getElementById('seo-structured-data') as HTMLScriptElement | null;
+    if (!schemaScript) {
+      schemaScript = document.createElement('script');
+      schemaScript.id = 'seo-structured-data';
+      schemaScript.type = 'application/ld+json';
+      document.head.appendChild(schemaScript);
+    }
+
+    const structuredData = {
+      '@context': 'https://schema.org',
+      '@type': seo.schemaType || 'SoftwareApplication',
+      'name': settings.storeName,
+      'applicationCategory': 'MultimediaApplication',
+      'operatingSystem': 'All',
+      'description': seo.metaDescription,
+      'url': seo.canonicalUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
+      'image': seo.ogImage,
+      'offers': {
+        '@type': 'AggregateOffer',
+        'priceCurrency': 'USD',
+        'lowPrice': '19',
+        'highPrice': '99',
+        'offerCount': '3'
+      }
+    };
+    schemaScript.textContent = JSON.stringify(structuredData, null, 2);
+  }, [settings.seo, settings.storeName]);
 
   // Initialize session with Saul Garcia's unlimited admin account by default
   const [session, setSession] = useState<UserSession | null>(() => {
@@ -24,9 +133,11 @@ export default function App() {
     } catch {
       // Fallback
     }
-    // Default active session for garciassaul7@gmail.com
+    // Default active session for garciassaul7@gmail.com in private/unlimited mode
     return {
       email: 'garciassaul7@gmail.com',
+      maskedEmail: 'g•••••••7@gmail.com',
+      hideEmail: true,
       name: 'Propietario VIP (Ilimitado)',
       role: 'admin',
       isUnlimited: true,
@@ -52,9 +163,9 @@ export default function App() {
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
-  const handleLogin = (newSession: UserSession) => {
+  const handleLogin = (newSession: UserSession, targetTab: 'storefront' | 'tool' | 'guide' | 'copys' | 'admin' = 'tool') => {
     setSession(newSession);
-    setCurrentTab('admin');
+    setCurrentTab(targetTab);
   };
 
   const handleLogout = () => {

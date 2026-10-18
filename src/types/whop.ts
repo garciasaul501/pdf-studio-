@@ -56,6 +56,22 @@ export interface VideoScene {
   style3D?: VisualStyle3D;
 }
 
+export interface SeoMetadataConfig {
+  pageTitle: string;
+  metaDescription: string;
+  keywords: string;
+  canonicalUrl?: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
+  ogType: string;
+  twitterCard: 'summary_large_image' | 'summary';
+  twitterCreator?: string;
+  author?: string;
+  robots?: string;
+  schemaType: 'SoftwareApplication' | 'WebApplication' | 'Product' | 'Course';
+}
+
 export interface StorefrontSettings {
   storeName: string;
   subdomain: string;
@@ -68,6 +84,8 @@ export interface StorefrontSettings {
   accentColor: string;
   guaranteeDays: number;
   plans: PlanConfig[];
+  testimonials?: Testimonial[];
+  seo?: SeoMetadataConfig;
 }
 
 export interface UserSession {
@@ -78,6 +96,8 @@ export interface UserSession {
   avatar?: string;
   licenseKey?: string;
   createdAt: string;
+  hideEmail?: boolean;
+  maskedEmail?: string;
 }
 
 export interface WhopMember {

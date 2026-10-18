@@ -134,7 +134,7 @@ ${JSON.stringify(scenes.map(s => ({ title: s.title, narration: s.narration, bull
 Reescribe o ajusta las escenas para cumplir con la instrucción del usuario. Devuelve una respuesta concisa explicando lo que mejoraste.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt
       });
 

@@ -11,7 +11,7 @@ import {
   Sparkles, CheckCircle2, Sliders, Smartphone, Monitor, Layers, 
   Share2, ArrowRight, Wand2, RefreshCw, FileUp, Copy, Check, 
   Crown, Video, Image as ImageIcon, Film, Loader2, Bot, MessageSquare,
-  UserCheck, Send, Zap, ChevronRight, Palette
+  UserCheck, Send, Zap, ChevronRight, Palette, X
 } from 'lucide-react';
 
 interface PdfToVideoToolProps {
@@ -25,6 +25,9 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
   // Presenter & Voice State
   const [currentPresenter, setCurrentPresenter] = useState<PresenterAvatar>(AI_PRESENTERS[0]);
   const [includeAvatarInVideo, setIncludeAvatarInVideo] = useState(true);
+  const [voiceRate, setVoiceRate] = useState(1.05);
+  const [voicePitch, setVoicePitch] = useState(1.0);
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
   
   // 3D Visual Style State
   const [visualStyle3D, setVisualStyle3D] = useState<VisualStyle3D>('3d-cyberneon');
@@ -81,21 +84,27 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-ES';
     
-    // Customize tone by presenter
+    // Preset voice profiles modified by user rate & pitch
+    let baseRate = voiceRate;
+    let basePitch = voicePitch;
+
     if (currentPresenter.voiceId === 'sofia') {
-      utterance.rate = 1.08;
-      utterance.pitch = 1.15;
+      baseRate *= 1.05;
+      basePitch *= 1.1;
     } else if (currentPresenter.voiceId === 'mateo') {
-      utterance.rate = 0.95;
-      utterance.pitch = 0.92;
+      baseRate *= 0.95;
+      basePitch *= 0.94;
     } else if (currentPresenter.voiceId === 'elena') {
-      utterance.rate = 1.02;
-      utterance.pitch = 1.06;
+      baseRate *= 1.0;
+      basePitch *= 1.05;
     } else {
       // Carlos
-      utterance.rate = 1.0;
-      utterance.pitch = 0.98;
+      baseRate *= 0.98;
+      basePitch *= 0.96;
     }
+
+    utterance.rate = Math.max(0.7, Math.min(1.5, baseRate));
+    utterance.pitch = Math.max(0.6, Math.min(1.5, basePitch));
 
     utterance.onend = () => {
       if (isPlaying && currentSceneIdx < scenes.length - 1) {
@@ -106,6 +115,20 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
       }
     };
 
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleTestVoice = () => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    setIsTestingVoice(true);
+    const greeting = `Hola, soy ${currentPresenter.name}. Tu presentador virtual con inteligencia artificial. Convertiré todo tu PDF en un video profesional con fondos 3D.`;
+    const utterance = new SpeechSynthesisUtterance(greeting);
+    utterance.lang = 'es-ES';
+    utterance.rate = voiceRate;
+    utterance.pitch = voicePitch;
+    utterance.onend = () => setIsTestingVoice(false);
+    utterance.onerror = () => setIsTestingVoice(false);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -376,6 +399,61 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
         </div>
       </div>
 
+      {/* ⚡ High-Impact Quick Generation Banner for Entire PDF */}
+      <div className="p-4 md:p-6 rounded-3xl bg-gradient-to-r from-orange-500/20 via-[#181C28] to-[#121520] border border-orange-500/35 shadow-xl flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/25 shrink-0">
+            <Zap className="w-6 h-6 fill-current" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-orange-400 uppercase tracking-wider">
+                Generador Automático de Todo el PDF
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
+                100% Funcional
+              </span>
+            </div>
+            <h2 className="text-base sm:text-lg font-black text-white mt-0.5">
+              Crea tu Video Completo con Presentador Virtual y Fondos 3D
+            </h2>
+            <p className="text-xs text-slate-300">
+              Analiza todas las páginas de tu documento, sintetiza la locución neuronal con {currentPresenter.name} y genera visuales 3D para cada escena.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="py-2.5 px-4 bg-white/10 hover:bg-white/15 text-white text-xs font-bold rounded-xl border border-white/15 transition-all flex items-center gap-2 cursor-pointer shadow-md"
+          >
+            {isPlaying ? <Pause className="w-4 h-4 text-amber-400" /> : <Play className="w-4 h-4 text-emerald-400 fill-current" />}
+            <span>{isPlaying ? 'Pausar Narración' : '▶️ Reproducir con Avatar'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportFullVideo}
+            disabled={isExportingVideo || isProcessing}
+            className="py-2.5 px-5 bg-[#FF6243] hover:bg-[#ff5130] text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-orange-500/30 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isExportingVideo ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Exportando ({exportProgress}%)...</span>
+              </>
+            ) : (
+              <>
+                <Film className="w-4 h-4" />
+                <span>⚡ Crear Video de Todo el PDF</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: PDF Input, Avatar Selector & 3D Style (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
@@ -489,9 +567,56 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
               })}
             </div>
 
-            <div className="p-3 bg-black/40 rounded-xl border border-white/5 text-xs text-slate-300 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Presentador seleccionado: <strong>{currentPresenter.name}</strong> ({currentPresenter.specialty})</span>
+            <div className="p-3.5 bg-black/40 rounded-xl border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span><strong>{currentPresenter.name}</strong> · {currentPresenter.specialty}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestVoice}
+                  disabled={isTestingVoice}
+                  className="px-2.5 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-[11px] font-bold rounded-lg border border-orange-500/30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{isTestingVoice ? 'Hablando...' : 'Probar Voz'}</span>
+                </button>
+              </div>
+
+              {/* Voice Tuning Sliders */}
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/5 text-[11px] text-slate-400">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span>Velocidad:</span>
+                    <span className="font-mono text-white font-bold">{voiceRate.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="1.3"
+                    step="0.05"
+                    value={voiceRate}
+                    onChange={(e) => setVoiceRate(parseFloat(e.target.value))}
+                    className="w-full accent-orange-500 cursor-pointer h-1 bg-white/20 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span>Tono / Pitch:</span>
+                    <span className="font-mono text-white font-bold">{voicePitch.toFixed(2)}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="1.3"
+                    step="0.05"
+                    value={voicePitch}
+                    onChange={(e) => setVoicePitch(parseFloat(e.target.value))}
+                    className="w-full accent-orange-500 cursor-pointer h-1 bg-white/20 rounded-lg"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -896,6 +1021,64 @@ export const PdfToVideoTool: React.FC<PdfToVideoToolProps> = ({ session }) => {
             <p className="text-[11px] text-slate-500">
               El archivo de video final se descargará automáticamente a tu equipo al completar el 100%.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Rendered Video Player & Download Modal */}
+      {renderedVideoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#121520] border border-orange-500/40 rounded-3xl p-6 w-full max-w-2xl space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">¡Video Completo Generado con Éxito!</h3>
+                  <p className="text-xs text-slate-400">Todo el PDF convertido con avatar IA, voz sincronizada y visuales 3D</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenderedVideoUrl(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden bg-black border border-white/10 aspect-video flex items-center justify-center shadow-inner">
+              <video
+                src={renderedVideoUrl}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/10">
+              <div className="text-xs text-slate-400">
+                <span>Presentador: <strong className="text-white">{currentPresenter.name}</strong> · Estilo: <strong className="text-orange-400">{visualStyle3D}</strong> · Audio: <strong className="text-emerald-400">Neuronal</strong></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={renderedVideoUrl}
+                  download={`PDF-Video-IA-${Date.now()}.webm`}
+                  className="py-2.5 px-4 bg-[#FF6243] hover:bg-[#ff5130] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Descargar Video</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setRenderedVideoUrl(null)}
+                  className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white text-xs font-medium rounded-xl transition-colors cursor-pointer"
+                >
+                  Volver al Estudio
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

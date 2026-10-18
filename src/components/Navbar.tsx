@@ -110,6 +110,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           {session?.role === 'admin' ? (
             <div className="flex items-center gap-2">
               <button
+                onClick={() => onSelectTab('tool')}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FF6243] hover:bg-[#ff5130] text-xs font-bold text-white transition-all shadow-md shadow-orange-500/20 cursor-pointer"
+                title="Crear Videos con Avatar e IA"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>Crear Video IA</span>
+              </button>
+              <button
                 onClick={() => onSelectTab('admin')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-500/15 border border-orange-500/30 text-xs font-bold text-amber-400 hover:bg-orange-500/25 transition-colors cursor-pointer"
                 title="Panel de Control"
